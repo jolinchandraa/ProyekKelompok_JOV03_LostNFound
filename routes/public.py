@@ -28,37 +28,73 @@ def parse_date(text):
 @public_bp.route("/")
 def index():
     """
-    Halaman utama: daftar laporan yang sudah dipublikasikan.
-    Parameter query string (semua opsional):
-      q        -> kata kunci (nama/deskripsi)
+    Halaman utama: daftar laporan yang sudah dipublikasikan + pencarian & filter.
+
+    Parameter query string (semua opsional, bisa dikombinasikan):
+      q        -> kata kunci. Bisa lebih dari satu kata ("tas hitam");
+                  SETIAP kata harus cocok di nama, deskripsi, atau lokasi.
       type     -> 'lost' atau 'found'
-      location -> sebagian nama lokasi
+      location -> sebagian nama lokasi (mis. "perpus")
       date     -> tanggal kejadian (YYYY-MM-DD)
       status   -> 'published' atau 'claimed'
-    Laporan berstatus 'pending' TIDAK ditampilkan ke publik.
+
+    Laporan berstatus 'pending' TIDAK pernah ditampilkan ke publik.
     """
+    # Query dasar: hanya laporan yang sudah dipublikasikan atau sudah diklaim
     query = Item.query.filter(Item.status.in_([STATUS_PUBLISHED, STATUS_CLAIMED]))
 
+    # Ambil nilai filter dari URL (?q=...&type=...), .strip() membuang spasi berlebih
     q = request.args.get("q", "").strip()
     report_type = request.args.get("type", "").strip()
     location = request.args.get("location", "").strip()
     date_str = request.args.get("date", "").strip()
     status = request.args.get("status", "").strip()
 
-    if q:  # cari di nama ATAU deskripsi (ilike = tidak peka huruf besar/kecil)
-        like = f"%{q}%"
-        query = query.filter(or_(Item.name.ilike(like), Item.description.ilike(like)))
+    # --- Pencarian kata kunci ---
+    # Pecah "tas hitam" menjadi ["tas", "hitam"]. Tiap kata harus ada di salah satu
+    # kolom (nama ATAU deskripsi ATAU lokasi), sehingga hasil makin spesifik
+    # kalau kata yang diketik makin banyak. ilike = tidak peka huruf besar/kecil.
+    for word in q.split():
+        like = f"%{word}%"
+        query = query.filter(or_(Item.name.ilike(like),
+                                 Item.description.ilike(like),
+                                 Item.location.ilike(like)))
+
+    # --- Filter jenis laporan (Lost / Found) ---
     if report_type in (TYPE_LOST, TYPE_FOUND):
         query = query.filter(Item.report_type == report_type)
+
+    # --- Filter lokasi (cocok sebagian) ---
     if location:
         query = query.filter(Item.location.ilike(f"%{location}%"))
-    if date_str and parse_date(date_str):
-        query = query.filter(Item.event_date == parse_date(date_str))
+
+    # --- Filter tanggal kejadian ---
+    event_date = parse_date(date_str)
+    if event_date:
+        query = query.filter(Item.event_date == event_date)
+
+    # --- Filter status (Published / Claimed) ---
     if status in (STATUS_PUBLISHED, STATUS_CLAIMED):
         query = query.filter(Item.status == status)
 
+    # Urutkan: tanggal kejadian terbaru dulu, lalu ID terbaru
     items = query.order_by(Item.event_date.desc(), Item.id.desc()).all()
-    return render_template("index.html", items=items)
+
+    # Daftar lokasi unik untuk saran (datalist) di kolom lokasi pada form
+    location_rows = (db.session.query(Item.location)
+                     .filter(Item.status.in_([STATUS_PUBLISHED, STATUS_CLAIMED]))
+                     .distinct().order_by(Item.location).all())
+    locations = [row[0] for row in location_rows]
+
+    # Apakah ada filter yang aktif? (dipakai template untuk menampilkan tombol "Reset")
+    filters_active = any([q, report_type, location, event_date, status])
+
+    # Kirim juga nilai filter agar form tetap terisi setelah dikirim
+    filters = {"q": q, "type": report_type, "location": location,
+               "date": date_str, "status": status}
+
+    return render_template("index.html", items=items, locations=locations,
+                           filters=filters, filters_active=filters_active)
 
 
 # ---------------------------------------------------------------- READ (detail)

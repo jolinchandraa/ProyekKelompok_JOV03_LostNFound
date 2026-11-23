@@ -2,36 +2,83 @@
 {% block content %}
 <h1>Daftar Laporan</h1>
 
-<!-- Form pencarian & filter (method GET -> parameter muncul di URL) -->
-<form method="get" class="filters">
-  <div><label>Kata kunci</label><input name="q" value="{{ request.args.get('q','') }}"></div>
-  <div><label>Jenis</label>
-    <select name="type">
+<!--
+  Form pencarian & filter.
+  method="get" -> nilai dikirim lewat URL (/?q=tas&type=lost&...), sehingga
+  hasil pencarian bisa di-bookmark atau dibagikan. Atribut "name" tiap input
+  HARUS sama dengan nama parameter yang dibaca di routes/public.py (index).
+-->
+<form method="get" action="{{ url_for('public.index') }}" class="filters">
+  <div>
+    <label for="q">Kata kunci</label>
+    <input id="q" type="search" name="q" value="{{ filters.q }}"
+           placeholder="mis. dompet hitam">
+  </div>
+
+  <div>
+    <label for="type">Jenis</label>
+    <select id="type" name="type">
       <option value="">Semua</option>
-      <option value="lost" {{ 'selected' if request.args.get('type')=='lost' }}>Lost</option>
-      <option value="found" {{ 'selected' if request.args.get('type')=='found' }}>Found</option>
-    </select></div>
-  <div><label>Lokasi</label><input name="location" value="{{ request.args.get('location','') }}"></div>
-  <div><label>Tanggal</label><input type="date" name="date" value="{{ request.args.get('date','') }}"></div>
-  <div><label>Status</label>
-    <select name="status">
+      <option value="lost"  {{ 'selected' if filters.type == 'lost' }}>Lost (hilang)</option>
+      <option value="found" {{ 'selected' if filters.type == 'found' }}>Found (ditemukan)</option>
+    </select>
+  </div>
+
+  <div>
+    <label for="location">Lokasi</label>
+    <!-- datalist = saran lokasi dari data yang ada, tetap boleh mengetik bebas -->
+    <input id="location" name="location" list="location-list"
+           value="{{ filters.location }}" placeholder="mis. Perpustakaan">
+    <datalist id="location-list">
+      {% for loc in locations %}<option value="{{ loc }}">{% endfor %}
+    </datalist>
+  </div>
+
+  <div>
+    <label for="date">Tanggal kejadian</label>
+    <input id="date" type="date" name="date" value="{{ filters.date }}">
+  </div>
+
+  <div>
+    <label for="status">Status</label>
+    <select id="status" name="status">
       <option value="">Semua</option>
-      <option value="published" {{ 'selected' if request.args.get('status')=='published' }}>Published</option>
-      <option value="claimed" {{ 'selected' if request.args.get('status')=='claimed' }}>Claimed</option>
-    </select></div>
-  <div><button type="submit">Cari</button></div>
+      <option value="published" {{ 'selected' if filters.status == 'published' }}>Published</option>
+      <option value="claimed"   {{ 'selected' if filters.status == 'claimed' }}>Claimed</option>
+    </select>
+  </div>
+
+  <div>
+    <button type="submit">Cari</button>
+    {# Tombol reset hanya muncul jika ada filter aktif; isinya link ke "/" tanpa parameter #}
+    {% if filters_active %}<a href="{{ url_for('public.index') }}">Reset</a>{% endif %}
+  </div>
 </form>
+
+<!-- Jumlah hasil -->
+<p>
+  {% if filters_active %}
+    Ditemukan <b>{{ items|length }}</b> laporan yang sesuai.
+  {% else %}
+    Menampilkan <b>{{ items|length }}</b> laporan.
+  {% endif %}
+</p>
 
 {% for item in items %}
   <div class="card">
     {% if item.photo_filename %}
       <img src="{{ url_for('static', filename='uploads/' ~ item.photo_filename) }}" alt="{{ item.name }}">
     {% endif %}
-    <h3><a href="{{ url_for('public.detail', item_id=item.id) }}">{{ item.name }}</a>
-        <small>[{{ item.report_type|upper }} · {{ item.status }}]</small></h3>
+    <h3>
+      <a href="{{ url_for('public.detail', item_id=item.id) }}">{{ item.name }}</a>
+      <small>[{{ item.report_type|upper }} · {{ item.status }}]</small>
+    </h3>
     <p>{{ item.location }} · {{ item.event_date.strftime('%d-%m-%Y') }} · ID: {{ item.id }}</p>
   </div>
 {% else %}
-  <p>Belum ada laporan yang sesuai.</p>
+  <p>
+    Tidak ada laporan yang cocok.
+    {% if filters_active %}<a href="{{ url_for('public.index') }}">Hapus semua filter</a>{% endif %}
+  </p>
 {% endfor %}
 {% endblock %}
