@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Lapor Barang</h1>
+<!-- enctype multipart/form-data WAJIB agar foto bisa diunggah -->
+<form method="post" enctype="multipart/form-data">
+  <label>Jenis laporan *
+    <select name="report_type" required>
+      <option value="lost" {{ 'selected' if form.get('report_type')=='lost' }}>Lost (barang hilang)</option>
+      <option value="found" {{ 'selected' if form.get('report_type')=='found' }}>Found (barang ditemukan)</option>
+    </select></label>
+  <label>Nama barang * <input name="name" value="{{ form.get('name','') }}" required></label>
+  <label>Deskripsi * <textarea name="description" rows="4" required>{{ form.get('description','') }}</textarea></label>
+  <label>Lokasi (terakhir terlihat / ditemukan) * <input name="location" value="{{ form.get('location','') }}" required></label>
+  <label>Tanggal (terakhir terlihat / ditemukan) * <input type="date" name="event_date" value="{{ form.get('event_date','') }}" required></label>
+  <label>Foto barang (opsional) <input type="file" name="photo" accept="image/*"></label>
+  <label>Nama pelapor * <input name="reporter_name" value="{{ form.get('reporter_name','') }}" required></label>
+  <label>Kontak pelapor * <input name="reporter_contact" value="{{ form.get('reporter_contact','') }}" required></label>
+  <p><button type="submit">Kirim Laporan</button></p>
+</form>
+{% endblock %}

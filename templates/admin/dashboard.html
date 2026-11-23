@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Dashboard Admin</h1>
+<div class="stats">
+  <a class="stat" href="{{ url_for('admin.items', status='pending') }}"><b>{{ counts['pending'] }}</b>Pending</a>
+  <a class="stat" href="{{ url_for('admin.items', status='published') }}"><b>{{ counts['published'] }}</b>Published</a>
+  <a class="stat" href="{{ url_for('admin.items', status='claimed') }}"><b>{{ counts['claimed'] }}</b>Claimed</a>
+  <a class="stat" href="{{ url_for('admin.claims') }}"><b>{{ pending_claims }}</b>Klaim menunggu</a>
+</div>
+
+<h2>Laporan terbaru</h2>
+<table>
+  <tr><th>ID</th><th>Nama</th><th>Jenis</th><th>Status</th></tr>
+  {% for i in latest_items %}
+  <tr><td>{{ i.id }}</td><td>{{ i.name }}</td><td>{{ i.report_type }}</td><td>{{ i.status }}</td></tr>
+  {% endfor %}
+</table>
+<p><a href="{{ url_for('admin.items') }}">Kelola semua barang</a> ·
+   <a href="{{ url_for('admin.claims') }}">Kelola klaim</a></p>
+{% endblock %}

@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Lost & Found Fasilkom UI{% endblock %}</title>
+  <!-- CSS minimal agar halaman terbaca. Tim frontend bebas menggantinya. -->
+  <style>
+    body{font-family:system-ui,sans-serif;max-width:960px;margin:0 auto;padding:1rem;line-height:1.5}
+    nav{display:flex;gap:1rem;flex-wrap:wrap;border-bottom:1px solid #ccc;padding-bottom:.5rem;margin-bottom:1rem}
+    .flash{padding:.5rem .75rem;margin:.5rem 0;border-radius:4px;background:#eef}
+    .flash.success{background:#dfd}.flash.danger{background:#fdd}.flash.warning{background:#ffd}
+    table{border-collapse:collapse;width:100%}th,td{border:1px solid #ddd;padding:.4rem;text-align:left}
+    label{display:block;margin-top:.7rem}input,select,textarea{width:100%;padding:.4rem;box-sizing:border-box}
+    .card{border:1px solid #ddd;border-radius:6px;padding:.75rem;margin:.5rem 0}
+    .card img,.detail-img{max-width:160px;max-height:160px;object-fit:cover}.detail-img{max-width:320px;max-height:320px}
+    .stats{display:flex;gap:1rem}.stat{flex:1;border:1px solid #ddd;border-radius:6px;padding:1rem;text-align:center}
+    .stat b{font-size:2rem;display:block}.inline{display:inline}.inline button{width:auto}
+    .filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.5rem;align-items:end}
+  </style>
+</head>
+<body>
+  <nav>
+    <a href="{{ url_for('public.index') }}">Beranda</a>
+    <a href="{{ url_for('public.report') }}">Lapor Barang</a>
+    <a href="{{ url_for('public.claim') }}">Klaim Barang</a>
+    {% if session.get('admin_id') %}
+      <a href="{{ url_for('admin.dashboard') }}">Dashboard Admin</a>
+      <a href="{{ url_for('admin.logout') }}">Logout</a>
+    {% else %}
+      <a href="{{ url_for('admin.login') }}">Login Admin</a>
+    {% endif %}
+  </nav>
+
+  {# Menampilkan pesan flash dari flash(...) di route #}
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+      <div class="flash {{ category }}">{{ message }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  {% block content %}{% endblock %}
+</body>
+</html>
