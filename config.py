@@ -18,7 +18,9 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     # Pengaturan upload foto
-    UPLOAD_FOLDER = os.path.join(BASE_DIR, "static", "uploads")
+    # Folder upload SENGAJA di luar "static" agar foto tidak bisa dibuka langsung lewat URL.
+    # Semua foto disajikan lewat route /photo/<id> yang memeriksa hak akses (lihat routes/public.py).
+    UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
     ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp"}
     MAX_CONTENT_LENGTH = 5 * 1024 * 1024  # batas ukuran upload: 5 MB
 

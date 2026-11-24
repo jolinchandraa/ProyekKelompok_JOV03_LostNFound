@@ -1,19 +1,33 @@
 {% extends "base.html" %}
+{% from "_macros.html" import badges, photo, item_card with context %}
 {% block content %}
 <h1>{{ item.name }}</h1>
-{% if item.photo_filename %}
-  <img class="detail-img" src="{{ url_for('static', filename='uploads/' ~ item.photo_filename) }}" alt="{{ item.name }}">
-{% endif %}
+<p>{{ badges(item) }}</p>
+
+{{ photo(item, "detail-img") }}
+
 <p><b>Item ID:</b> {{ item.id }}</p>
 <p><b>Jenis:</b> {{ item.report_type|upper }} &nbsp; <b>Status:</b> {{ item.status }}</p>
+<p><b>Kategori:</b> {{ item.category }}</p>
 <p><b>Lokasi:</b> {{ item.location }}</p>
-<p><b>Tanggal {{ 'terakhir terlihat' if item.report_type=='lost' else 'ditemukan' }}:</b>
+<p><b>Tanggal {{ 'terakhir terlihat' if item.report_type == 'lost' else 'ditemukan' }}:</b>
    {{ item.event_date.strftime('%d-%m-%Y') }}</p>
 <p><b>Deskripsi:</b><br>{{ item.description }}</p>
+{% if item.reward_note %}<p><b>Apresiasi dari pemilik:</b> {{ item.reward_note }}</p>{% endif %}
 <p><b>Pelapor:</b> {{ item.reporter_name }} ({{ item.reporter_contact }})</p>
 
-{# Tombol klaim hanya muncul untuk barang Found yang masih Published #}
+{# Tombol klaim hanya untuk barang Found yang masih Published #}
 {% if item.report_type == 'found' and item.status == 'published' %}
   <p><a href="{{ url_for('public.claim', item_id=item.id) }}">Ajukan klaim barang ini</a></p>
+{% endif %}
+
+{# Rekomendasi auto-matching: hanya untuk laporan Lost #}
+{% if item.report_type == 'lost' and item.status != 'claimed' %}
+  <h2>Mungkin barangmu sudah ditemukan</h2>
+  {% for m in matches %}
+    {{ item_card(m.item, m.label, m.reasons) }}
+  {% else %}
+    <p class="muted">Belum ada laporan Found yang cocok. Cek lagi nanti, daftar ini diperbarui otomatis.</p>
+  {% endfor %}
 {% endif %}
 {% endblock %}

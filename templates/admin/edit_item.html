@@ -4,12 +4,22 @@
 <form method="post" enctype="multipart/form-data">
   <label>Jenis
     <select name="report_type">
-      <option value="lost" {{ 'selected' if item.report_type=='lost' }}>Lost</option>
-      <option value="found" {{ 'selected' if item.report_type=='found' }}>Found</option>
+      <option value="lost"  {{ 'selected' if item.report_type == 'lost' }}>Lost</option>
+      <option value="found" {{ 'selected' if item.report_type == 'found' }}>Found</option>
     </select></label>
   <label>Status
     <select name="status">
-      {% for s in statuses %}<option value="{{ s }}" {{ 'selected' if item.status==s }}>{{ s }}</option>{% endfor %}
+      {% for s in statuses %}<option value="{{ s }}" {{ 'selected' if item.status == s }}>{{ s }}</option>{% endfor %}
+    </select></label>
+  <label>Kategori (prioritas ikut berubah otomatis)
+    <select name="category">
+      {% for c in categories %}<option value="{{ c }}" {{ 'selected' if item.category == c }}>{{ c }}</option>{% endfor %}
+    </select></label>
+  <p class="muted">Prioritas saat ini: <b>{{ item.priority }}</b></p>
+  <label>Apresiasi (hanya berlaku untuk Lost)
+    <select name="reward_note">
+      <option value="">-- tidak ada --</option>
+      {% for r in rewards %}<option value="{{ r }}" {{ 'selected' if item.reward_note == r }}>{{ r }}</option>{% endfor %}
     </select></label>
   <label>Nama barang <input name="name" value="{{ item.name }}" required></label>
   <label>Deskripsi <textarea name="description" rows="4" required>{{ item.description }}</textarea></label>
@@ -18,7 +28,8 @@
   <label>Nama pelapor <input name="reporter_name" value="{{ item.reporter_name }}"></label>
   <label>Kontak pelapor <input name="reporter_contact" value="{{ item.reporter_contact }}"></label>
   {% if item.photo_filename %}
-    <p>Foto saat ini:<br><img class="detail-img" src="{{ url_for('static', filename='uploads/' ~ item.photo_filename) }}"></p>
+    {# Admin yang login selalu melihat foto asli (tanpa blur) #}
+    <p>Foto saat ini:<br><img class="detail-img" src="{{ url_for('public.photo', item_id=item.id) }}" alt="Foto"></p>
     <label><input type="checkbox" name="remove_photo" style="width:auto"> Hapus foto</label>
   {% endif %}
   <label>Ganti foto <input type="file" name="photo" accept="image/*"></label>

@@ -8,12 +8,14 @@
   <a href="{{ url_for('admin.items', status='claimed') }}">Claimed</a>
 </p>
 <table>
-  <tr><th>ID</th><th>Nama</th><th>Jenis</th><th>Lokasi</th><th>Tanggal</th><th>Status</th><th>Aksi</th></tr>
+  <tr><th>ID</th><th>Nama</th><th>Jenis</th><th>Kategori</th><th>Prioritas</th><th>Lokasi</th><th>Tanggal</th><th>Status</th><th>Aksi</th></tr>
   {% for i in items %}
   <tr>
     <td>{{ i.id }}</td>
     <td><a href="{{ url_for('public.detail', item_id=i.id) }}">{{ i.name }}</a></td>
-    <td>{{ i.report_type }}</td><td>{{ i.location }}</td>
+    <td>{{ i.report_type }}</td><td>{{ i.category }}</td>
+    <td>{% if i.is_high_priority %}<span class="badge urgent">URGENT</span>{% else %}normal{% endif %}</td>
+    <td>{{ i.location }}</td>
     <td>{{ i.event_date.strftime('%d-%m-%Y') }}</td><td>{{ i.status }}</td>
     <td>
       {% if i.status == 'pending' %}
@@ -29,6 +31,6 @@
             onsubmit="return confirm('Hapus laporan ini?');"><button>Hapus</button></form>
     </td>
   </tr>
-  {% else %}<tr><td colspan="7">Tidak ada data.</td></tr>{% endfor %}
+  {% else %}<tr><td colspan="9">Tidak ada data.</td></tr>{% endfor %}
 </table>
 {% endblock %}

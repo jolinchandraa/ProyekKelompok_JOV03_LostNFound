@@ -5,7 +5,9 @@ Fungsi bantu yang dipakai di beberapa route: upload foto & proteksi halaman admi
 import os
 import uuid
 from functools import wraps
-from flask import current_app, session, redirect, url_for, flash
+from io import BytesIO
+from flask import current_app, session, redirect, url_for, flash, send_file
+from PIL import Image, ImageFilter
 
 
 def allowed_file(filename):
@@ -51,3 +53,41 @@ def admin_required(view):
             return redirect(url_for("admin.login"))
         return view(*args, **kwargs)
     return wrapped
+
+
+# ------------------------------------------------------------ PRIVACY BLUR
+def photo_is_blurred(item):
+    """
+    Menentukan apakah foto sebuah barang harus disamarkan untuk pengunjung saat ini.
+    Foto kategori Dokumen/ID disamarkan, KECUALI:
+      - pengunjung adalah admin (sudah login), atau
+      - klaim atas barang tersebut sudah disetujui.
+    Fungsi ini juga didaftarkan sebagai fungsi global Jinja (lihat app.py)
+    agar template bisa menampilkan keterangan "foto disamarkan".
+    """
+    if not item.is_sensitive:
+        return False
+    if "admin_id" in session:
+        return False
+    if item.has_approved_claim:
+        return False
+    return True
+
+
+def blurred_photo_response(path):
+    """
+    Membuat versi BURAM dari foto di server (bukan hanya CSS), sehingga pengunjung
+    tidak bisa membuka foto asli lewat 'Inspect Element' atau URL langsung.
+    Foto diperkecil dulu (maks 400px) lalu diburamkan dengan Gaussian blur.
+    """
+    img = Image.open(path).convert("RGB")
+    img.thumbnail((400, 400))
+    img = img.filter(ImageFilter.GaussianBlur(radius=14))
+
+    buffer = BytesIO()
+    img.save(buffer, "JPEG", quality=70)
+    buffer.seek(0)
+
+    response = send_file(buffer, mimetype="image/jpeg")
+    response.headers["Cache-Control"] = "no-store"  # jangan di-cache, status bisa berubah
+    return response

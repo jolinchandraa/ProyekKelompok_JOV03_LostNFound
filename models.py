@@ -3,7 +3,7 @@ models.py
 Definisi tabel database memakai SQLAlchemy (ORM).
 Satu class = satu tabel. Satu atribut db.Column = satu kolom.
 """
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -19,6 +19,29 @@ ALL_STATUSES = [STATUS_PENDING, STATUS_PUBLISHED, STATUS_CLAIMED]
 TYPE_LOST = "lost"    # laporan barang hilang
 TYPE_FOUND = "found"  # laporan barang ditemukan
 
+# ---- Kategori barang ----
+CATEGORY_ELECTRONIC = "Elektronik"
+CATEGORY_DOCUMENT = "Dokumen/ID"
+CATEGORY_WALLET = "Dompet"
+CATEGORIES = [CATEGORY_ELECTRONIC, CATEGORY_DOCUMENT, CATEGORY_WALLET, "Pakaian", "Makanan", "Lainnya"]
+
+# ---- Prioritas ----
+# Dokumen/ID, Elektronik, & Dompet dianggap mendesak (High)
+PRIORITY_HIGH = "high"
+PRIORITY_NORMAL = "normal"
+HIGH_PRIORITY_CATEGORIES = {CATEGORY_DOCUMENT, CATEGORY_ELECTRONIC, CATEGORY_WALLET}  
+
+# Laporan dianggap "baru" selama sekian hari sejak dibuat
+NEW_ITEM_DAYS = 3
+
+# ---- Pilihan apresiasi sukarela (hanya untuk laporan Lost) ----
+REWARD_OPTIONS = ["Traktir di kantin", "Pemberian uang", "Ucapan terima kasih", "Tanpa imbalan"]
+
+
+def priority_for_category(category):
+    """Prioritas ditentukan otomatis dari kategori: High untuk Dokumen/ID, Elektronik, & Dompet."""
+    return PRIORITY_HIGH if category in HIGH_PRIORITY_CATEGORIES else PRIORITY_NORMAL
+
 
 class Item(db.Model):
     """Tabel laporan barang (Lost maupun Found)."""
@@ -31,6 +54,9 @@ class Item(db.Model):
     location = db.Column(db.String(150), nullable=False)         # lokasi terakhir terlihat / ditemukan
     event_date = db.Column(db.Date, nullable=False)              # tanggal terakhir terlihat / ditemukan
     photo_filename = db.Column(db.String(255), nullable=True)    # nama file foto (opsional)
+    category = db.Column(db.String(30), nullable=False, default="Lainnya")        # lihat CATEGORIES
+    priority = db.Column(db.String(10), nullable=False, default=PRIORITY_NORMAL)  # 'high' / 'normal'
+    reward_note = db.Column(db.String(50), nullable=True)        # apresiasi sukarela (khusus Lost)
     reporter_name = db.Column(db.String(120), nullable=False)    # nama pelapor
     reporter_contact = db.Column(db.String(120), nullable=False) # kontak pelapor
     status = db.Column(db.String(20), nullable=False, default=STATUS_PENDING)
@@ -39,6 +65,28 @@ class Item(db.Model):
     # Relasi satu-ke-banyak: satu barang bisa punya banyak klaim.
     # cascade="all, delete-orphan" -> kalau barang dihapus, klaimnya ikut terhapus.
     claims = db.relationship("Claim", backref="item", cascade="all, delete-orphan")
+
+    # ---- Properti bantu (dipakai di route & template) ----
+    @property
+    def is_high_priority(self):
+        """True jika prioritas High/Urgent."""
+        return self.priority == PRIORITY_HIGH
+
+    @property
+    def is_new(self):
+        """True jika laporan dibuat dalam NEW_ITEM_DAYS hari terakhir."""
+        return (self.created_at is not None and
+                self.created_at >= datetime.utcnow() - timedelta(days=NEW_ITEM_DAYS))
+
+    @property
+    def is_sensitive(self):
+        """True jika fotonya perlu disamarkan di halaman publik (kategori Dokumen/ID)."""
+        return self.category == CATEGORY_DOCUMENT
+
+    @property
+    def has_approved_claim(self):
+        """True jika sudah ada klaim yang disetujui admin untuk barang ini."""
+        return any(c.status == "approved" for c in self.claims)
 
     def __repr__(self):
         return f"<Item {self.id} {self.report_type} {self.name}>"

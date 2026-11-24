@@ -1,0 +1,41 @@
+{# 
+  _macros.html
+  Potongan tampilan yang dipakai ulang di beranda, detail, dan rekomendasi.
+  Diimpor dengan: {% from "_macros.html" import badges, photo, item_card with context %}
+#}
+
+{# Badge: URGENT (prioritas tinggi), BARU, kategori, dan apresiasi (khusus Lost) #}
+{% macro badges(item) %}
+  {% if item.is_high_priority %}<span class="badge urgent">URGENT</span>{% endif %}
+  {% if item.is_new %}<span class="badge new">BARU</span>{% endif %}
+  <span class="badge">{{ item.category }}</span>
+  {% if item.reward_note %}<span class="badge reward">Apresiasi: {{ item.reward_note }}</span>{% endif %}
+{% endmacro %}
+
+{# Foto lewat route /photo/<id>; server yang memutuskan buram atau jelas #}
+{% macro photo(item, css_class="") %}
+  {% if item.photo_filename %}
+    <div class="photo-wrap">
+      <img class="{{ css_class }}" src="{{ url_for('public.photo', item_id=item.id) }}" alt="Foto {{ item.name }}">
+      {% if photo_is_blurred(item) %}
+        <span class="photo-note">Foto disamarkan demi privasi</span>
+      {% endif %}
+    </div>
+  {% endif %}
+{% endmacro %}
+
+{# Kartu satu barang. reasons/label diisi hanya pada daftar rekomendasi matching #}
+{% macro item_card(item, label=None, reasons=None) %}
+  <div class="card {{ 'card-urgent' if item.is_high_priority }}">
+    {{ photo(item) }}
+    <h3>
+      <a href="{{ url_for('public.detail', item_id=item.id) }}">{{ item.name }}</a>
+      <small>[{{ item.report_type|upper }} · {{ item.status }}]</small>
+    </h3>
+    <p>{{ badges(item) }}</p>
+    <p>{{ item.location }} · {{ item.event_date.strftime('%d-%m-%Y') }} · ID: {{ item.id }}</p>
+    {% if reasons %}
+      <p class="muted"><b>{{ label }}</b>: {{ reasons|join('; ') }}</p>
+    {% endif %}
+  </div>
+{% endmacro %}

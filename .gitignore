@@ -1,0 +1,5 @@
+lostfound.db
+uploads/
+__pycache__/
+venv/
+.vscode/
