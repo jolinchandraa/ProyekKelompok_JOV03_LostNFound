@@ -6,12 +6,15 @@ Cara kerja (sistem poin sederhana, mudah dijelaskan):
   +3  kategori sama (+1 saja jika kategorinya "Lainnya", karena terlalu umum)
   +2  untuk tiap kata kunci yang sama di nama/deskripsi (maksimal 4 kata)
   +2  bonus jika ada kata yang sama di NAMA barang
-  +3  lokasi persis sama / +2 jika ada kata lokasi yang sama
+  +3  pilihan lokasi (dropdown) sama, mis. sama-sama "Kantin"
+       (lokasi "Lainnya" tidak dihitung karena terlalu umum)
+  +1  lokasi berbeda tetapi lantainya bersebelahan, mis. Lantai 2 dan Lantai 3
+  +1..2  detail lokasi opsional mirip (1 poin per kata yang sama, maksimal 2)
   +1  barang ditemukan 0-14 hari setelah tanggal kehilangan
 Laporan Found dengan total poin >= MIN_SCORE dianggap kandidat, diurutkan dari poin tertinggi.
 """
 import re
-from models import Item, TYPE_FOUND, STATUS_PUBLISHED
+from models import Item, TYPE_FOUND, STATUS_PUBLISHED, LOCATION_OTHER
 
 MIN_SCORE = 3
 
@@ -23,10 +26,16 @@ STOPWORDS = {
 }
 
 
-def tokenize(text):
-    """Memecah teks menjadi himpunan kata kunci: huruf kecil, minimal 3 huruf, bukan stopword."""
+def tokenize(text, min_len=3):
+    """Memecah teks menjadi himpunan kata kunci: huruf kecil, minimal min_len huruf, bukan stopword."""
     words = re.findall(r"[a-z0-9]+", (text or "").lower())
-    return {w for w in words if len(w) >= 3 and w not in STOPWORDS}
+    return {w for w in words if len(w) >= min_len and w not in STOPWORDS}
+
+
+def floor_number(location):
+    """'Lantai 3' -> 3. Mengembalikan None jika lokasinya bukan lantai."""
+    match = re.fullmatch(r"Lantai (\d+)", location or "")
+    return int(match.group(1)) if match else None
 
 
 def _label(score):
@@ -48,8 +57,9 @@ def find_matches(lost_item, limit=5):
 
     lost_name = tokenize(lost_item.name)
     lost_all = lost_name | tokenize(lost_item.description)
-    lost_loc_words = tokenize(lost_item.location)
-    lost_loc_text = " ".join((lost_item.location or "").lower().split())
+    lost_floor = floor_number(lost_item.location)
+    # Detail lokasi memakai kata minimal 2 huruf agar angka seperti "12" ikut dihitung
+    lost_detail = tokenize(lost_item.location_detail, min_len=2)
 
     results = []
     for found in candidates:
@@ -70,14 +80,21 @@ def find_matches(lost_item, limit=5):
         if lost_name & found_name:
             score += 2  # bonus: namanya saling mirip
 
-        # 3) Lokasi
-        found_loc_text = " ".join((found.location or "").lower().split())
-        if lost_loc_text and lost_loc_text == found_loc_text:
+        # 3) Lokasi (pilihan dropdown yang seragam)
+        if found.location == lost_item.location and found.location != LOCATION_OTHER:
             score += 3
-            reasons.append("lokasi sama")
-        elif lost_loc_words & tokenize(found.location):
-            score += 2
-            reasons.append("lokasi mirip")
+            reasons.append(f"lokasi sama ({found.location})")
+        else:
+            found_floor = floor_number(found.location)
+            if lost_floor and found_floor and abs(lost_floor - found_floor) == 1:
+                score += 1
+                reasons.append("lantai berdekatan")
+
+        # 3b) Detail lokasi opsional (nama ruangan, nomor meja, dll.)
+        shared_detail = sorted(lost_detail & tokenize(found.location_detail, min_len=2))
+        if shared_detail:
+            score += min(len(shared_detail), 2)
+            reasons.append("detail lokasi mirip: " + ", ".join(shared_detail))
 
         # 4) Tanggal: barang ditemukan setelah (atau pas) hari kehilangan
         days = (found.event_date - lost_item.event_date).days

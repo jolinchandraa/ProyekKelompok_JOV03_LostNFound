@@ -6,7 +6,8 @@
   {% for c in claims %}
   <tr>
     <td>{{ c.id }}</td>
-    <td><a href="{{ url_for('public.detail', item_id=c.item.id) }}">#{{ c.item.id }} {{ c.item.name }}</a></td>
+    <td><a href="{{ url_for('public.detail', item_id=c.item.id) }}">#{{ c.item.id }} {{ c.item.name }}</a>
+      {% if c.item.storage_label %}<br><span class="badge storage">{{ c.item.storage_label }}</span>{% endif %}</td>
     <td>{{ c.claimant_name }}</td><td>{{ c.contact }}</td><td>{{ c.message }}</td><td>{{ c.status }}</td>
     <td>
       {% if c.status == 'pending' %}

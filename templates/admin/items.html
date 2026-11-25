@@ -13,9 +13,10 @@
   <tr>
     <td>{{ i.id }}</td>
     <td><a href="{{ url_for('public.detail', item_id=i.id) }}">{{ i.name }}</a></td>
-    <td>{{ i.report_type }}</td><td>{{ i.category }}</td>
+    <td>{{ i.report_type }}{% if i.storage_label %}<br><span class="badge storage">{{ i.storage_label }}</span>{% endif %}</td>
+    <td>{{ i.category }}</td>
     <td>{% if i.is_high_priority %}<span class="badge urgent">URGENT</span>{% else %}normal{% endif %}</td>
-    <td>{{ i.location }}</td>
+    <td>{{ i.location_display }}</td>
     <td>{{ i.event_date.strftime('%d-%m-%Y') }}</td><td>{{ i.status }}</td>
     <td>
       {% if i.status == 'pending' %}

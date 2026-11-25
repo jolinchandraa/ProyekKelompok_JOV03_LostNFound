@@ -20,27 +20,53 @@ TYPE_LOST = "lost"    # laporan barang hilang
 TYPE_FOUND = "found"  # laporan barang ditemukan
 
 # ---- Kategori barang ----
-CATEGORY_ELECTRONIC = "Elektronik"
 CATEGORY_DOCUMENT = "Dokumen/ID"
-CATEGORY_WALLET = "Dompet"
-CATEGORIES = [CATEGORY_ELECTRONIC, CATEGORY_DOCUMENT, CATEGORY_WALLET, "Pakaian", "Makanan", "Lainnya"]
+CATEGORY_FOOD = "Makanan"
+CATEGORIES = ["Elektronik", CATEGORY_DOCUMENT, "Dompet", "Pakaian", CATEGORY_FOOD, "Lainnya"]
 
 # ---- Prioritas ----
-# Dokumen/ID, Elektronik, & Dompet dianggap mendesak (High)
+# Dokumen/ID, Elektronik, dan Dompet dianggap mendesak (bernilai tinggi / dibutuhkan segera).
 PRIORITY_HIGH = "high"
 PRIORITY_NORMAL = "normal"
-HIGH_PRIORITY_CATEGORIES = {CATEGORY_DOCUMENT, CATEGORY_ELECTRONIC, CATEGORY_WALLET}  
+HIGH_PRIORITY_CATEGORIES = {CATEGORY_DOCUMENT, "Elektronik", "Dompet"}
 
 # Laporan dianggap "baru" selama sekian hari sejak dibuat
 NEW_ITEM_DAYS = 3
 
-# ---- Pilihan apresiasi sukarela (hanya untuk laporan Lost) ----
-REWARD_OPTIONS = ["Traktir di kantin", "Pemberian uang", "Ucapan terima kasih", "Tanpa imbalan"]
+# ---- Pilihan lokasi (dropdown seragam) ----
+LOCATION_OTHER = "Lainnya"
+LOCATIONS = ["Perpustakaan", "Kantin", "Lantai 1", "Lantai 2", "Lantai 3", "Lantai 4",
+             "Lantai 5", "Lantai 6", "Lantai 7", "Parkiran", "Mushola", "Stulo", LOCATION_OTHER]
+
+# ---- Posisi penyimpanan barang (khusus laporan Found) ----
+STORAGE_FINDER = "finder"      # masih dipegang penemu
+STORAGE_SECURITY = "security"  # sudah dititipkan ke pos satpam
+STORAGE_OPTIONS = {STORAGE_FINDER: "Dipegang Penemu",
+                   STORAGE_SECURITY: "Dititipkan di Pos Satpam"}
 
 
 def priority_for_category(category):
-    """Prioritas ditentukan otomatis dari kategori: High untuk Dokumen/ID, Elektronik, & Dompet."""
+    """Prioritas ditentukan otomatis dari kategori: High untuk Dokumen/ID, Elektronik, Dompet."""
     return PRIORITY_HIGH if category in HIGH_PRIORITY_CATEGORIES else PRIORITY_NORMAL
+
+
+def split_legacy_location(old_text):
+    """
+    Dipakai saat migrasi data lama yang lokasinya masih teks bebas (mis. "Kantin Fasilkom").
+    Mengembalikan (pilihan_dropdown, detail):
+      - jika teks mengandung nama lokasi baku (mis. "kantin"), pakai lokasi itu
+      - jika tidak, pakai "Lainnya"
+      - teks aslinya disimpan sebagai detail agar informasinya tidak hilang
+    """
+    cleaned = (old_text or "").strip()
+    lowered = cleaned.lower()
+    chosen = LOCATION_OTHER
+    for loc in LOCATIONS:
+        if loc != LOCATION_OTHER and loc.lower() in lowered:
+            chosen = loc
+            break
+    detail = None if lowered == chosen.lower() else (cleaned or None)
+    return chosen, detail
 
 
 class Item(db.Model):
@@ -51,12 +77,14 @@ class Item(db.Model):
     report_type = db.Column(db.String(10), nullable=False)       # 'lost' / 'found'
     name = db.Column(db.String(120), nullable=False)             # nama barang
     description = db.Column(db.Text, nullable=False)             # deskripsi barang
-    location = db.Column(db.String(150), nullable=False)         # lokasi terakhir terlihat / ditemukan
+    location = db.Column(db.String(150), nullable=False)         # pilihan dropdown (lihat LOCATIONS)
+    location_detail = db.Column(db.String(150), nullable=True)   # detail lokasi opsional (ruang, meja, dll.)
     event_date = db.Column(db.Date, nullable=False)              # tanggal terakhir terlihat / ditemukan
     photo_filename = db.Column(db.String(255), nullable=True)    # nama file foto (opsional)
     category = db.Column(db.String(30), nullable=False, default="Lainnya")        # lihat CATEGORIES
     priority = db.Column(db.String(10), nullable=False, default=PRIORITY_NORMAL)  # 'high' / 'normal'
-    reward_note = db.Column(db.String(50), nullable=True)        # apresiasi sukarela (khusus Lost)
+    # Khusus laporan Found: 'finder' atau 'security'. Untuk laporan Lost nilainya None.
+    storage_status = db.Column(db.String(20), nullable=True)
     reporter_name = db.Column(db.String(120), nullable=False)    # nama pelapor
     reporter_contact = db.Column(db.String(120), nullable=False) # kontak pelapor
     status = db.Column(db.String(20), nullable=False, default=STATUS_PENDING)
@@ -82,6 +110,20 @@ class Item(db.Model):
     def is_sensitive(self):
         """True jika fotonya perlu disamarkan di halaman publik (kategori Dokumen/ID)."""
         return self.category == CATEGORY_DOCUMENT
+
+    @property
+    def location_display(self):
+        """Lokasi untuk ditampilkan: 'Kantin (dekat meja 5)' atau 'Kantin' jika tanpa detail."""
+        if self.location_detail:
+            return f"{self.location} ({self.location_detail})"
+        return self.location
+
+    @property
+    def storage_label(self):
+        """Teks posisi barang untuk laporan Found, mis. 'Dititipkan di Pos Satpam'. None untuk Lost."""
+        if self.report_type != TYPE_FOUND:
+            return None
+        return STORAGE_OPTIONS.get(self.storage_status)
 
     @property
     def has_approved_claim(self):

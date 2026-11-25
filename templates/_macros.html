@@ -4,12 +4,12 @@
   Diimpor dengan: {% from "_macros.html" import badges, photo, item_card with context %}
 #}
 
-{# Badge: URGENT (prioritas tinggi), BARU, kategori, dan apresiasi (khusus Lost) #}
+{# Badge: URGENT, BARU, kategori, dan posisi barang (khusus Found) #}
 {% macro badges(item) %}
   {% if item.is_high_priority %}<span class="badge urgent">URGENT</span>{% endif %}
   {% if item.is_new %}<span class="badge new">BARU</span>{% endif %}
   <span class="badge">{{ item.category }}</span>
-  {% if item.reward_note %}<span class="badge reward">Apresiasi: {{ item.reward_note }}</span>{% endif %}
+  {% if item.storage_label %}<span class="badge storage">Posisi: {{ item.storage_label }}</span>{% endif %}
 {% endmacro %}
 
 {# Foto lewat route /photo/<id>; server yang memutuskan buram atau jelas #}
@@ -33,7 +33,7 @@
       <small>[{{ item.report_type|upper }} · {{ item.status }}]</small>
     </h3>
     <p>{{ badges(item) }}</p>
-    <p>{{ item.location }} · {{ item.event_date.strftime('%d-%m-%Y') }} · ID: {{ item.id }}</p>
+    <p>{{ item.location_display }} · {{ item.event_date.strftime('%d-%m-%Y') }} · ID: {{ item.id }}</p>
     {% if reasons %}
       <p class="muted"><b>{{ label }}</b>: {{ reasons|join('; ') }}</p>
     {% endif %}

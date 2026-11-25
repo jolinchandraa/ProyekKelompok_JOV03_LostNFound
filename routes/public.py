@@ -2,7 +2,7 @@
 routes/public.py
 Route untuk mahasiswa (tanpa login):
   - Read   : daftar + pencarian + filter + prioritas, detail + auto-matching
-  - Create : lapor barang hilang / ditemukan (kategori, apresiasi)
+  - Create : lapor barang hilang / ditemukan (kategori, lokasi dropdown, posisi barang Found)
   - Claim  : ajukan klaim untuk barang yang ditemukan
   - Photo  : menyajikan foto (dengan privacy blur untuk Dokumen/ID)
 """
@@ -12,8 +12,9 @@ from flask import (Blueprint, render_template, request, redirect, url_for,
                    flash, abort, session, current_app, send_from_directory)
 from sqlalchemy import or_, case
 from models import (db, Item, Claim, STATUS_PENDING, STATUS_PUBLISHED, STATUS_CLAIMED,
-                    TYPE_LOST, TYPE_FOUND, CATEGORIES, REWARD_OPTIONS, PRIORITY_HIGH,
-                    NEW_ITEM_DAYS, priority_for_category)
+                    TYPE_LOST, TYPE_FOUND, CATEGORIES, LOCATIONS, STORAGE_OPTIONS,
+                    HIGH_PRIORITY_CATEGORIES, PRIORITY_HIGH, NEW_ITEM_DAYS,
+                    priority_for_category)
 from utils import save_photo, allowed_file, photo_is_blurred, blurred_photo_response
 from matching import find_matches
 
@@ -28,6 +29,13 @@ def parse_date(text):
         return None
 
 
+def report_form_context():
+    """Data pilihan (dropdown) yang dibutuhkan templat report_form.html."""
+    return dict(categories=CATEGORIES, locations=LOCATIONS,
+                storage_options=STORAGE_OPTIONS,
+                high_categories=sorted(HIGH_PRIORITY_CATEGORIES))
+
+
 # ---------------------------------------------------------------- READ (daftar)
 @public_bp.route("/")
 def index():
@@ -35,10 +43,10 @@ def index():
     Halaman utama: daftar laporan yang sudah dipublikasikan + pencarian & filter.
 
     Parameter query string (semua opsional, bisa dikombinasikan):
-      q        -> kata kunci; tiap kata harus cocok di nama/deskripsi/lokasi
+      q        -> kata kunci; tiap kata harus cocok di nama/deskripsi/lokasi/detail lokasi
       type     -> 'lost' atau 'found'
       category -> salah satu dari CATEGORIES
-      location -> sebagian nama lokasi
+      location -> salah satu dari LOCATIONS (pilihan dropdown)
       date     -> tanggal kejadian (YYYY-MM-DD)
       status   -> 'published' atau 'claimed'
 
@@ -63,15 +71,16 @@ def index():
         like = f"%{word}%"
         query = query.filter(or_(Item.name.ilike(like),
                                  Item.description.ilike(like),
-                                 Item.location.ilike(like)))
+                                 Item.location.ilike(like),
+                                 Item.location_detail.ilike(like)))
 
     # --- Filter ---
     if report_type in (TYPE_LOST, TYPE_FOUND):
         query = query.filter(Item.report_type == report_type)
     if category in CATEGORIES:
         query = query.filter(Item.category == category)
-    if location:
-        query = query.filter(Item.location.ilike(f"%{location}%"))
+    if location in LOCATIONS:
+        query = query.filter(Item.location == location)
     event_date = parse_date(date_str)
     if event_date:
         query = query.filter(Item.event_date == event_date)
@@ -89,16 +98,10 @@ def index():
         Item.id.desc(),
     ).all()
 
-    # Daftar lokasi unik untuk saran (datalist) di kolom lokasi
-    location_rows = (db.session.query(Item.location)
-                     .filter(Item.status.in_([STATUS_PUBLISHED, STATUS_CLAIMED]))
-                     .distinct().order_by(Item.location).all())
-
     filters = {"q": q, "type": report_type, "category": category,
                "location": location, "date": date_str, "status": status}
     return render_template("index.html", items=items, filters=filters,
-                           locations=[row[0] for row in location_rows],
-                           categories=CATEGORIES,
+                           locations=LOCATIONS, categories=CATEGORIES,
                            filters_active=any(filters.values()))
 
 
@@ -151,18 +154,19 @@ def report():
     """
     Form laporan baru. GET = tampilkan form, POST = simpan data.
     Laporan baru otomatis berstatus 'pending' sampai disetujui admin.
-    Prioritas diisi otomatis dari kategori; apresiasi hanya berlaku untuk laporan Lost.
+    Prioritas diisi otomatis dari kategori. Posisi penyimpanan hanya berlaku untuk laporan Found.
     """
     if request.method == "POST":
         report_type = request.form.get("report_type", "")
         category = request.form.get("category", "")
         name = request.form.get("name", "").strip()
         description = request.form.get("description", "").strip()
-        location = request.form.get("location", "").strip()
+        location = request.form.get("location", "")
+        location_detail = request.form.get("location_detail", "").strip()[:150]
+        storage_status = request.form.get("storage_status", "")
         event_date = parse_date(request.form.get("event_date", ""))
         reporter_name = request.form.get("reporter_name", "").strip()
         reporter_contact = request.form.get("reporter_contact", "").strip()
-        reward_note = request.form.get("reward_note", "").strip()
         photo_file = request.files.get("photo")
 
         errors = []
@@ -170,7 +174,11 @@ def report():
             errors.append("Jenis laporan harus Lost atau Found.")
         if category not in CATEGORIES:
             errors.append("Pilih kategori barang.")
-        if not (name and description and location and reporter_name and reporter_contact):
+        if location not in LOCATIONS:
+            errors.append("Pilih lokasi dari daftar.")
+        if report_type == TYPE_FOUND and storage_status not in STORAGE_OPTIONS:
+            errors.append("Pilih posisi barang (dipegang penemu atau di pos satpam).")
+        if not (name and description and reporter_name and reporter_contact):
             errors.append("Semua kolom bertanda * wajib diisi.")
         if event_date is None:
             errors.append("Tanggal tidak valid.")
@@ -183,18 +191,16 @@ def report():
             for e in errors:
                 flash(e, "danger")
             return render_template("report_form.html", form=request.form,
-                                   categories=CATEGORIES, rewards=REWARD_OPTIONS), 400
-
-        # Apresiasi hanya untuk Lost dan hanya jika termasuk pilihan yang valid
-        if report_type != TYPE_LOST or reward_note not in REWARD_OPTIONS:
-            reward_note = None
+                                   **report_form_context()), 400
 
         item = Item(
             report_type=report_type, name=name, description=description,
-            location=location, event_date=event_date,
+            location=location, location_detail=location_detail or None,
+            event_date=event_date,
             category=category,
-            priority=priority_for_category(category),   # High untuk Dokumen/ID & Makanan
-            reward_note=reward_note,
+            priority=priority_for_category(category),   # High: Dokumen/ID, Elektronik, Dompet
+            # Posisi penyimpanan hanya untuk Found; Lost selalu None
+            storage_status=storage_status if report_type == TYPE_FOUND else None,
             photo_filename=save_photo(photo_file),
             reporter_name=reporter_name, reporter_contact=reporter_contact,
             status=STATUS_PENDING,
@@ -204,8 +210,7 @@ def report():
         flash("Laporan terkirim! Laporan akan tampil setelah disetujui admin.", "success")
         return redirect(url_for("public.index"))
 
-    return render_template("report_form.html", form={},
-                           categories=CATEGORIES, rewards=REWARD_OPTIONS)
+    return render_template("report_form.html", form={}, **report_form_context())
 
 
 # ---------------------------------------------------------------- CLAIM

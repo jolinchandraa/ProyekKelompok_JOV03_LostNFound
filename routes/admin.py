@@ -12,7 +12,8 @@ from flask import (Blueprint, render_template, request, redirect,
 from sqlalchemy import func, case
 from models import (db, Item, Claim, Admin, ALL_STATUSES, STATUS_PENDING,
                     STATUS_PUBLISHED, STATUS_CLAIMED, TYPE_LOST, TYPE_FOUND,
-                    CATEGORIES, REWARD_OPTIONS, PRIORITY_HIGH, priority_for_category)
+                    CATEGORIES, LOCATIONS, STORAGE_OPTIONS, STORAGE_FINDER,
+                    PRIORITY_HIGH, priority_for_category)
 from utils import admin_required, save_photo, delete_photo, allowed_file
 from routes.public import parse_date
 
@@ -80,27 +81,29 @@ def items():
 @admin_bp.route("/items/<int:item_id>/edit", methods=["GET", "POST"])
 @admin_required
 def edit_item(item_id):
-    """Edit seluruh informasi laporan, termasuk kategori, apresiasi, status, dan foto."""
+    """Edit seluruh informasi laporan, termasuk kategori, lokasi, posisi barang Found, status, dan foto."""
     item = db.get_or_404(Item, item_id)
 
     def show_form(code=200):
         """Menampilkan form edit (dipakai berulang agar kode tidak berulang)."""
         return render_template("admin/edit_item.html", item=item, statuses=ALL_STATUSES,
-                               categories=CATEGORIES, rewards=REWARD_OPTIONS), code
+                               categories=CATEGORIES, locations=LOCATIONS,
+                               storage_options=STORAGE_OPTIONS), code
 
     if request.method == "POST":
         event_date = parse_date(request.form.get("event_date", ""))
         report_type = request.form.get("report_type", "")
         category = request.form.get("category", "")
         status = request.form.get("status", "")
-        reward_note = request.form.get("reward_note", "").strip()
+        storage_status = request.form.get("storage_status", "")
         photo = request.files.get("photo")
 
         name = request.form.get("name", "").strip()
         description = request.form.get("description", "").strip()
-        location = request.form.get("location", "").strip()
+        location = request.form.get("location", "")
+        location_detail = request.form.get("location_detail", "").strip()[:150]
 
-        if (not (name and description and location) or event_date is None
+        if (not (name and description) or location not in LOCATIONS or event_date is None
                 or report_type not in (TYPE_LOST, TYPE_FOUND) or status not in ALL_STATUSES
                 or category not in CATEGORIES):
             flash("Data tidak valid. Periksa kembali isian.", "danger")
@@ -112,13 +115,20 @@ def edit_item(item_id):
         item.name = name
         item.description = description
         item.location = location
+        item.location_detail = location_detail or None
         item.event_date = event_date
         item.report_type = report_type
         item.status = status
         item.category = category
         item.priority = priority_for_category(category)  # prioritas selalu mengikuti kategori
-        # Apresiasi hanya berlaku untuk Lost
-        item.reward_note = reward_note if (report_type == TYPE_LOST and reward_note in REWARD_OPTIONS) else None
+        # Posisi penyimpanan hanya berlaku untuk Found (nilai tidak valid -> pakai yang lama / default)
+        if report_type == TYPE_FOUND:
+            if storage_status in STORAGE_OPTIONS:
+                item.storage_status = storage_status
+            elif item.storage_status not in STORAGE_OPTIONS:
+                item.storage_status = STORAGE_FINDER
+        else:
+            item.storage_status = None
         item.reporter_name = request.form.get("reporter_name", "").strip() or item.reporter_name
         item.reporter_contact = request.form.get("reporter_contact", "").strip() or item.reporter_contact
 

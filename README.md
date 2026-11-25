@@ -11,37 +11,28 @@
 
 Database `lostfound.db` dan akun admin dibuat otomatis saat pertama dijalankan.
 Login admin awal: username `admin`, password `admin123` (ubah di config.py / environment variable).
-Untuk mereset data, hentikan server dan hapus file `lostfound.db`.
 
 ## Struktur
-- app.py          : membuat aplikasi, mendaftarkan blueprint, membuat tabel & admin awal
+- app.py          : membuat aplikasi, migrasi database otomatis, akun admin awal
 - config.py       : pengaturan (secret key, database, upload, admin awal)
-- models.py       : tabel Item, Claim, Admin
-- utils.py        : upload foto & decorator admin_required
-- routes/public.py: Create, Read, Claim (mahasiswa)
-- routes/admin.py : login, dashboard, Update, Delete, review klaim (admin)
-- templates/      : HTML (Jinja2), templates/admin untuk halaman admin
-- uploads/        : foto yang diunggah (di luar static, disajikan lewat route /photo/<id>)
+- models.py       : tabel Item, Claim, Admin + konstanta (kategori, lokasi, posisi barang, prioritas)
 - matching.py     : smart auto-matching Lost -> Found
+- utils.py        : upload foto, privacy blur, decorator admin_required
+- routes/public.py: Create, Read, Claim, Photo (mahasiswa)
+- routes/admin.py : login, dashboard, Update, Delete, review klaim (admin)
+- templates/      : HTML (Jinja2); _macros.html berisi badge & kartu barang
+- uploads/        : foto yang diunggah (disajikan lewat /photo/<id>)
 
-## Daftar route
-| URL | Method | Fungsi |
-|---|---|---|
-| / | GET | Daftar laporan + cari/filter (q, type, location, date, status) |
-| /items/<id> | GET | Detail barang |
-| /report | GET, POST | Buat laporan Lost/Found (kategori, apresiasi) |
-| /photo/<id> | GET | Foto barang (buram untuk Dokumen/ID bagi non-admin) |
-| /claim | GET, POST | Ajukan klaim |
-| /admin/login, /admin/logout | GET/POST, GET | Autentikasi admin |
-| /admin/ | GET | Dashboard (jumlah Pending/Published/Claimed) |
-| /admin/items | GET | Kelola barang (filter ?status=) |
-| /admin/items/<id>/edit | GET, POST | Edit laporan & status |
-| /admin/items/<id>/status | POST | Ubah status cepat |
-| /admin/items/<id>/delete | POST | Hapus laporan |
-| /admin/claims | GET | Daftar klaim |
-| /admin/claims/<id>/approve atau reject | POST | Tinjau klaim |
+## Aturan penting
+- Prioritas High otomatis untuk kategori Dokumen/ID, Elektronik, Dompet (ubah di HIGH_PRIORITY_CATEGORIES, models.py).
+- Foto kategori Dokumen/ID diburamkan di server untuk publik (jelas untuk admin / klaim disetujui).
+- Lokasi memakai dropdown (LOCATIONS di models.py) + detail lokasi opsional.
+- Posisi barang (Dipegang Penemu / Dititipkan di Pos Satpam) hanya untuk laporan Found; admin bisa mengubahnya di halaman edit.
 
-## Upgrade dari versi sebelumnya
-- Kolom baru (category, priority, reward_note) ditambahkan otomatis ke lostfound.db saat app dijalankan; data lama aman (kategori lama = Lainnya).
-- Folder foto pindah dari static/uploads ke uploads/. Salin foto lama ke folder uploads/ agar tetap tampil.
-- Jalankan `pip install -r requirements.txt` lagi (ada tambahan Pillow).
+## Upgrade dari versi sebelumnya (tanpa menghapus lostfound.db)
+Saat `python app.py` dijalankan, otomatis:
+- kolom baru `location_detail` dan `storage_status` ditambahkan;
+- lokasi teks bebas lama diubah menjadi pilihan dropdown (teks aslinya disimpan di detail lokasi; yang tidak dikenali menjadi "Lainnya");
+- laporan Found lama diberi posisi "Dipegang Penemu";
+- prioritas dihitung ulang dari kategori dengan aturan baru;
+- kolom lama `reward_note` dibiarkan di database (tidak dipakai, tidak menimbulkan error).

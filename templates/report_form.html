@@ -21,21 +21,32 @@
 
   <label>Nama barang * <input name="name" value="{{ form.get('name','') }}" required></label>
   <label>Deskripsi * <textarea name="description" rows="4" required>{{ form.get('description','') }}</textarea></label>
-  <label>Lokasi (terakhir terlihat / ditemukan) * <input name="location" value="{{ form.get('location','') }}" required></label>
-  <label>Tanggal (terakhir terlihat / ditemukan) * <input type="date" name="event_date" value="{{ form.get('event_date','') }}" required></label>
-  <label>Foto barang (opsional) <input type="file" name="photo" accept="image/*"></label>
-  <small class="muted">Foto kategori Dokumen/ID otomatis disamarkan untuk publik.</small>
 
-  <!-- Apresiasi sukarela: hanya muncul untuk laporan Lost -->
-  <div id="reward-box">
-    <label>Apresiasi sukarela (opsional)
-      <select name="reward_note">
-        <option value="">-- tidak diisi --</option>
-        {% for r in rewards %}
-          <option value="{{ r }}" {{ 'selected' if form.get('reward_note') == r }}>{{ r }}</option>
+  <label>Lokasi (terakhir terlihat / ditemukan) *
+    <select name="location" required>
+      <option value="">-- pilih lokasi --</option>
+      {% for loc in locations %}
+        <option value="{{ loc }}" {{ 'selected' if form.get('location') == loc }}>{{ loc }}</option>
+      {% endfor %}
+    </select></label>
+  <label>Detail lokasi spesifik (opsional)
+    <input name="location_detail" maxlength="150" value="{{ form.get('location_detail','') }}"
+           placeholder="mis. Ruang 2.3, meja nomor 5, dekat lift"></label>
+
+  <label>Tanggal (terakhir terlihat / ditemukan) * <input type="date" name="event_date" value="{{ form.get('event_date','') }}" required></label>
+
+  <!-- Posisi barang: hanya muncul untuk laporan Found -->
+  <div id="storage-box">
+    <label>Posisi barang saat ini *
+      <select name="storage_status">
+        {% for value, label in storage_options.items() %}
+          <option value="{{ value }}" {{ 'selected' if form.get('storage_status', 'finder') == value }}>{{ label }}</option>
         {% endfor %}
       </select></label>
   </div>
+
+  <label>Foto barang (opsional) <input type="file" name="photo" accept="image/*"></label>
+  <small class="muted">Foto kategori Dokumen/ID otomatis disamarkan untuk publik.</small>
 
   <label>Nama pelapor * <input name="reporter_name" value="{{ form.get('reporter_name','') }}" required></label>
   <label>Kontak pelapor * <input name="reporter_contact" value="{{ form.get('reporter_contact','') }}" required></label>
@@ -46,12 +57,13 @@
   // Hanya untuk kenyamanan tampilan; validasi sebenarnya dilakukan di server (routes/public.py).
   const typeSelect = document.getElementById("report_type");
   const categorySelect = document.getElementById("category");
-  const rewardBox = document.getElementById("reward-box");
+  const storageBox = document.getElementById("storage-box");
   const hint = document.getElementById("priority-hint");
-  const HIGH = ["Dokumen/ID", "Makanan"];  // harus sama dengan HIGH_PRIORITY_CATEGORIES di models.py
+  // Daftar kategori prioritas tinggi dikirim dari server (HIGH_PRIORITY_CATEGORIES di models.py)
+  const HIGH = {{ high_categories|tojson }};
 
   function refresh() {
-    rewardBox.style.display = typeSelect.value === "lost" ? "block" : "none";
+    storageBox.style.display = typeSelect.value === "found" ? "block" : "none";
     hint.textContent = HIGH.includes(categorySelect.value)
       ? "Prioritas: HIGH/URGENT (akan diberi badge dan ditampilkan lebih dulu)."
       : "";

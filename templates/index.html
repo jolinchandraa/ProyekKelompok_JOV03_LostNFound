@@ -34,11 +34,12 @@
 
   <div>
     <label for="location">Lokasi</label>
-    <input id="location" name="location" list="location-list"
-           value="{{ filters.location }}" placeholder="mis. Perpustakaan">
-    <datalist id="location-list">
-      {% for loc in locations %}<option value="{{ loc }}">{% endfor %}
-    </datalist>
+    <select id="location" name="location">
+      <option value="">Semua</option>
+      {% for loc in locations %}
+        <option value="{{ loc }}" {{ 'selected' if filters.location == loc }}>{{ loc }}</option>
+      {% endfor %}
+    </select>
   </div>
 
   <div>
